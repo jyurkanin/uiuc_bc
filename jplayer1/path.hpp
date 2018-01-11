@@ -22,7 +22,8 @@ typedef struct{
 
 class Path{
 public:
-    static int getNextMove(int (&map)[MAX_MAP_SIZE_X][MAX_MAP_SIZE_Y], Pos2D start);
+    static bc_Direction getDirection(Pos2D start, Pos2D adjacent);
+    static Pos2D getNextMove(int (&map)[MAX_MAP_SIZE_X][MAX_MAP_SIZE_Y], Pos2D start);
     static int getAllPaths(int (&directionMap)[MAX_MAP_SIZE_X][MAX_MAP_SIZE_Y], int (&map)[MAX_MAP_SIZE_X][MAX_MAP_SIZE_Y], Pos2D start, Pos2D stop);
     static int getPath(std::vector<bc_Direction> &moveList, int (&map)[MAX_MAP_SIZE_X][MAX_MAP_SIZE_Y], Pos2D start, Pos2D stop);
 };

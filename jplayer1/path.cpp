@@ -6,7 +6,7 @@ int pathTest(int argc, char *argv[]){
 //    printf("ayy lmao Im startin\n");
     if(argc < 2) return EXIT_FAILURE;
     
-    srand(0xDEADBEE);
+    srand(0xDEADBEEF);
     for(int i = 0; i < 50; i++){
         for(int j = 0; j < 50; j++){
             if(rand() < RAND_MAX/std::stof(argv[1], nullptr))
@@ -33,6 +33,10 @@ int debugMap(int (&directionMap)[MAX_MAP_SIZE_X][MAX_MAP_SIZE_Y], int (&map)[MAX
     return EXIT_SUCCESS;
 }
 #endif
+
+
+
+
 
 int Path::getAllPaths(int (&directionMap)[MAX_MAP_SIZE_X][MAX_MAP_SIZE_Y], int (&map)[MAX_MAP_SIZE_X][MAX_MAP_SIZE_Y], Pos2D start, Pos2D stop){
     std::vector<Pos2D> waveFront;
@@ -76,9 +80,9 @@ int Path::getAllPaths(int (&directionMap)[MAX_MAP_SIZE_X][MAX_MAP_SIZE_Y], int (
         nextWave.clear();
         
 #ifdef DEBUG
-//        debugMap(directionMap, map);
-//        refresh();
-//        getch();
+        debugMap(directionMap, map);
+        refresh();
+        getch();
 #endif
     }
     
@@ -87,12 +91,59 @@ int Path::getAllPaths(int (&directionMap)[MAX_MAP_SIZE_X][MAX_MAP_SIZE_Y], int (
     
 }
 
-int Path::getNextMove(int (&map)[MAX_MAP_SIZE_X][MAX_MAP_SIZE_Y], Pos2D start){
-    
+Pos2D Path::getNextMove(int (&map)[MAX_MAP_SIZE_X][MAX_MAP_SIZE_Y], Pos2D point){
+    Pos2D minPoint = {-1, -1};
+    int min = 1000000;
+    for(int i = -1; i <= 1; i++){
+        for(int j = -1; j <= 1; j++){
+            if(i == 0 && j == 0) continue;
+            if(point.x + i < 0 || point.x + i >= MAX_MAP_SIZE_X ||
+               point.y + j < 0 || point.y + j >= MAX_MAP_SIZE_Y) continue;
+            if(map[point.x + i][point.y + j] < min){
+                min = map[point.x + i][point.y + j];
+                minPoint.x = point.x + i;
+                minPoint.y = point.y + j;
+            }
+        }
+    }
+    return minPoint;
+}
+
+//get the direction from start to adjacent
+bc_Direction Path::getDirection(Pos2D start, Pos2D adjacent){
+    int dx = start.x - adjacent.x + 1; //either 0, 1, 2
+    int dy = start.y - adjacent.y + 1;
+    int combined = dx + (dy << 2);
+    static bc_Direction table[11] = {Northeast, North, Northwest, Center, East, Center, West, Center, Southeast, South, Southwest};
+    /* dx dy combined
+       0 0 0
+       0 1 4
+       0 2 8
+       1 0 1
+       1 1 5
+       1 2 9
+       2 0 2
+       2 1 6
+       2 2 10 */
+    return table[combined];    
 }
 
 int Path::getPath(std::vector<bc_Direction> &moveList, int (&map)[MAX_MAP_SIZE_X][MAX_MAP_SIZE_Y], Pos2D start, Pos2D stop){
     static int directionMap[MAX_MAP_SIZE_X][MAX_MAP_SIZE_Y]; //will it be faster if this is static?
-    return getAllPaths(directionMap, map, start, stop);
+    if(getAllPaths(directionMap, map, start, stop))
+        return EXIT_FAILURE;
+
+    Pos2D temp;
+    Pos2D temp2;
+    temp.x = start.x;
+    temp.y = start.y;
+
+    //there has to be a path otherwise it would have returned earlier.
+    while(temp.x != stop.x && temp.y != stop.y){
+        temp2 = getNextMove(map, temp);
+        moveList.insert(moveList.begin(), getDirection(temp, temp2));
+        temp2 = temp;       
+    }
+    return EXIT_SUCCESS;
 }
 
