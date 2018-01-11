@@ -38,12 +38,20 @@ int debugMap(int (&directionMap)[MAX_MAP_SIZE_X][MAX_MAP_SIZE_Y], int (&map)[MAX
 
 
 
-int Path::getAllPaths(int (&directionMap)[MAX_MAP_SIZE_X][MAX_MAP_SIZE_Y], int (&map)[MAX_MAP_SIZE_X][MAX_MAP_SIZE_Y], Pos2D start, Pos2D stop){
+int Path::getAllPaths(int (&directionMap)[MAX_MAP_SIZE_X][MAX_MAP_SIZE_Y], int (&map)[MAX_MAP_SIZE_X][MAX_MAP_SIZE_Y], bc_MapLocation *ml_start, bc_MapLocation *ml_stop){
     std::vector<Pos2D> waveFront;
     std::vector<Pos2D> nextWave;
+    Pos2D start;
+    Pos2D stop;
     Pos2D testPos;
     int counter = 0;
     int pathExists = 0;
+    bc_MapLocation *temp_ml = new_bc_MapLocation(bc_MapLocation_planet_get(ml_start), 0, 0);
+
+    start.x = bc_MapLocation_x_get(ml_start);
+    start.y = bc_MapLocation_y_get(ml_start);
+    stop.x = bc_MapLocation_x_get(ml_stop);
+    stop.y = bc_MapLocation_y_get(ml_stop);
     
     memset(directionMap, -1, sizeof(directionMap));
     
@@ -58,21 +66,29 @@ int Path::getAllPaths(int (&directionMap)[MAX_MAP_SIZE_X][MAX_MAP_SIZE_Y], int (
                     if(i == 0 && j == 0) continue; //pretty lazy.
                     testPos.x = waveFront[k].x + i;
                     testPos.y = waveFront[k].y + j;
-                    if(testPos.x < 0 || testPos.x >= MAX_MAP_SIZE_X ||
-                       testPos.y < 0 || testPos.y >= MAX_MAP_SIZE_Y) continue;
-                        
-                    
-                    
-                    if(map[testPos.x][testPos.y] == BLOCKED) continue;
+                    if(testPos.x < 0 || testPos.x >= width ||
+                       testPos.y < 0 || testPos.y >= height) continue;
                     if(directionMap[testPos.x][testPos.y] != -1) continue;
+                    if(map[testPos.x][testPos.y] == BLOCKED) continue;
+//                    if((map[testPos.x][testPos.y] >> 1) < round){ //our info is out of date
+                    //rescan if possible.
+                    bc_MapLocation_x_set(temp_ml, testPos.x);
+                    bc_MapLocation_y_set(temp_ml, testPos.y);
+                    if(bc_GameController_can_sense_location(gc, temp_ml) && bc_GameController_has_unit_at_location(gc, temp_ml)){
+                        continue;
+                    }                    
                     pathExists = 1;
                     directionMap[testPos.x][testPos.y] = counter;
-                    if(testPos.x == start.x && testPos.y == start.y) return EXIT_SUCCESS;
+                    if(testPos.x == start.x && testPos.y == start.y){
+                        delete_bc_MapLocation(temp_ml);
+                        return EXIT_SUCCESS;
+                    }
                     nextWave.push_back(testPos);
                 }
             }
         }
         if(!pathExists){
+            delete_bc_MapLocation(temp_ml);
             return EXIT_FAILURE;
         }
         pathExists = 0;
@@ -128,16 +144,23 @@ bc_Direction Path::getDirection(Pos2D start, Pos2D adjacent){
     return table[combined];    
 }
 
-int Path::getPath(std::vector<bc_Direction> &moveList, int (&map)[MAX_MAP_SIZE_X][MAX_MAP_SIZE_Y], Pos2D start, Pos2D stop){
+int Path::getPath(std::vector<bc_Direction> &moveList, int (&map)[MAX_MAP_SIZE_X][MAX_MAP_SIZE_Y], bc_MapLocation *ml_start, bc_MapLocation *ml_stop){
     static int directionMap[MAX_MAP_SIZE_X][MAX_MAP_SIZE_Y]; //will it be faster if this is static?
-    if(getAllPaths(directionMap, map, start, stop))
+    if(getAllPaths(directionMap, map, ml_start, ml_stop))
         return EXIT_FAILURE;
+
+    Pos2D start;
+    Pos2D stop;
+    start.x = bc_MapLocation_x_get(ml_start);
+    start.y = bc_MapLocation_y_get(ml_start);
+    stop.x = bc_MapLocation_x_get(ml_stop);
+    stop.y = bc_MapLocation_y_get(ml_stop);
 
     Pos2D temp;
     Pos2D temp2;
     temp.x = start.x;
     temp.y = start.y;
-
+    
     //there has to be a path otherwise it would have returned earlier.
     while(temp.x != stop.x && temp.y != stop.y){
         temp2 = getNextMove(map, temp);
