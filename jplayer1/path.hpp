@@ -9,7 +9,6 @@
 #pragma once
 
 #ifdef DEBUG
-
 #include <ncurses.h>
 int pathTest(int argc, char *argv[]);
 #endif
