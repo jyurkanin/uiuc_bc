@@ -552,7 +552,11 @@ bc_StartTurnMessage* new_bc_StartTurnMessage();
 /// 
 void delete_bc_StartTurnMessage(bc_StartTurnMessage* arg);
 /// 
+int32_t bc_StartTurnMessage_time_left_ms_get(bc_StartTurnMessage* arg);
+/// 
 uint32_t bc_StartTurnMessage_round_get(bc_StartTurnMessage* arg);
+/// 
+void bc_StartTurnMessage_time_left_ms_set(bc_StartTurnMessage* arg, int32_t time_left_ms);
 /// 
 void bc_StartTurnMessage_round_set(bc_StartTurnMessage* arg, uint32_t round);
 /// Deserialize a StartTurnMessage from a JSON string
@@ -595,6 +599,38 @@ bc_ErrorMessage* bc_ErrorMessage_from_json(char* s);
 char* bc_ErrorMessage_to_json(bc_ErrorMessage* arg);
 /// Create a human-readable representation of a ErrorMessage
 char* bc_ErrorMessage_debug(bc_ErrorMessage* arg);
+/// 
+typedef struct bc_ReceivedMessaTurnMessage bc_ReceivedMessaTurnMessage;
+/// 
+bc_ReceivedMessaTurnMessage* new_bc_ReceivedMessaTurnMessage();
+/// 
+void delete_bc_ReceivedMessaTurnMessage(bc_ReceivedMessaTurnMessage* arg);
+/// Deserialize a ReceivedMessaTurnMessage from a JSON string
+bc_ReceivedMessaTurnMessage* bc_ReceivedMessaTurnMessage_from_json(char* s);
+/// Serialize a ReceivedMessaTurnMessage to a JSON string
+char* bc_ReceivedMessaTurnMessage_to_json(bc_ReceivedMessaTurnMessage* arg);
+/// Create a human-readable representation of a ReceivedMessaTurnMessage
+char* bc_ReceivedMessaTurnMessage_debug(bc_ReceivedMessaTurnMessage* arg);
+/// 
+typedef struct bc_SentMessage bc_SentMessage;
+/// 
+bc_SentMessage* new_bc_SentMessage();
+/// 
+void delete_bc_SentMessage(bc_SentMessage* arg);
+/// 
+char* bc_SentMessage_client_id_get(bc_SentMessage* arg);
+/// 
+bc_TurnMessage* bc_SentMessage_turn_message_get(bc_SentMessage* arg);
+/// 
+void bc_SentMessage_client_id_set(bc_SentMessage* arg, char* client_id);
+/// 
+void bc_SentMessage_turn_message_set(bc_SentMessage* arg, bc_TurnMessage* turn_message);
+/// Deserialize a SentMessage from a JSON string
+bc_SentMessage* bc_SentMessage_from_json(char* s);
+/// Serialize a SentMessage to a JSON string
+char* bc_SentMessage_to_json(bc_SentMessage* arg);
+/// Create a human-readable representation of a SentMessage
+char* bc_SentMessage_debug(bc_SentMessage* arg);
 /// 
 typedef struct bc_TurnApplication bc_TurnApplication;
 /// 
@@ -733,6 +769,8 @@ void bc_GameMap_orbit_set(bc_GameMap* arg, bc_OrbitPattern* orbit);
 void bc_GameMap_validate(bc_GameMap* arg);
 /// 
 bc_GameMap* bc_GameMap_test_map();
+/// parse a .bc18t map file
+bc_GameMap* bc_GameMap_parse_text_map(char* map);
 /// Deep-copy a GameMap
 bc_GameMap* bc_GameMap_clone(bc_GameMap* arg);
 /// Deserialize a GameMap from a JSON string
@@ -831,6 +869,8 @@ bc_GameController* new_bc_GameController();
 void delete_bc_GameController(bc_GameController* arg);
 /// Send the moves from the current turn and wait for the next turn.
 void bc_GameController_next_turn(bc_GameController* arg);
+/// Get the time left at the start of arg player's turn, in milliseconds.
+int32_t bc_GameController_get_time_left_ms(bc_GameController* arg);
 /// The current round, starting at round 1 and up to ROUND_LIMIT rounds. A round consists of a turn from each team on each planet.
 uint32_t bc_GameController_round(bc_GameController* arg);
 /// The current planet.
@@ -1136,13 +1176,19 @@ bc_GameController* bc_GameController_new_manager(bc_GameMap* map);
 /// 
 bc_StartGameMessage* bc_GameController_start_game(bc_GameController* arg, bc_Player* player);
 /// 
-bc_TurnApplication* bc_GameController_apply_turn(bc_GameController* arg, bc_TurnMessage* turn);
+bc_TurnApplication* bc_GameController_apply_turn(bc_GameController* arg, bc_TurnMessage* turn, int32_t time_left_ms);
 /// 
-bc_InitialTurnApplication* bc_GameController_initial_start_turn_message(bc_GameController* arg);
+bc_InitialTurnApplication* bc_GameController_initial_start_turn_message(bc_GameController* arg, int32_t time_left_ms);
 /// 
 uint8_t bc_GameController_is_over(bc_GameController* arg);
 /// 
 bc_Team bc_GameController_winning_team(bc_GameController* arg);
+/// 
+char* bc_GameController_manager_viewer_message(bc_GameController* arg);
+/// 
+void bc_GameController_print_game_ansi(bc_GameController* arg);
+/// 
+uint32_t bc_GameController_manager_karbonite(bc_GameController* arg, bc_Team team);
 #ifdef __cplusplus
 }
 #endif
