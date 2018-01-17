@@ -11,6 +11,8 @@
 
 //Params
 #define NUM_WORKERS_GOAL 10
+#define NUM_FACTORIES_GOAL 5
+#define NUM_RANGERS_GOAL 10
 
 
 
@@ -18,6 +20,7 @@
 //aint got no gdb
 #define WHEREAMI(x) printf("[%s:%d] %d\n", __FILE__, __LINE__, x); fflush(stdout)
 #define STOPWATCH(x) gettimeofday(&_time_start, NULL); x; gettimeofday(&_time_stop, NULL); printf("%s : %ld, %ld\n", #x, _time_stop.tv_sec - _time_start.tv_sec, _time_stop.tv_usec - _time_start.tv_usec); fflush(stdout)
+#define OTHER_TEAM(x) ((bc_Team) ((x+1) % 2))
 
 inline bool check_errors() {
     /// Check if we have an error...

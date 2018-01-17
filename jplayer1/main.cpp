@@ -74,7 +74,15 @@ int robot_init(){
     printf("jplayer startin up\n");
     srand(0xDEADBEEF);
     gc = new_bc_GameController();
-
+    //nothing fancy. Place holder for actual strategy
+    bc_GameController_queue_research(gc, Rocket);
+    bc_GameController_queue_research(gc, Ranger);
+    bc_GameController_queue_research(gc, Worker);
+    bc_GameController_queue_research(gc, Ranger);
+    bc_GameController_queue_research(gc, Worker);
+    bc_GameController_queue_research(gc, Ranger);
+    bc_GameController_queue_research(gc, Worker);
+    
     //all this to find out what planet im on.
     bc_VecUnit *units = bc_GameController_my_units(gc);
     bc_Unit *unit = bc_VecUnit_index(units, 0);
@@ -328,21 +336,204 @@ int canHarvest(bc_Unit *unit, bc_Direction &d){
 
 
 
+int canUnload(bc_Unit *unit, bc_Direction &dir){
+    for(int i = 0; i < 8; i++){
+        if(bc_GameController_can_unload(gc, bc_Unit_id(unit), (bc_Direction) i)){
+            dir = (bc_Direction) i;
+            return true;            
+        }
+    }
+    return false;
+}
+
+int canLoad(bc_Unit *unit, int &id){
+    bc_Location *unit_l = bc_Unit_location(unit);
+    bc_MapLocation *unit_ml = bc_Location_map_location(unit_l);
+    bc_VecUnit *adjacent = bc_GameController_sense_nearby_units_by_team(gc, unit_ml, 2, myTeam);
+    bc_Unit *temp_unit;
+    int len = bc_VecUnit_len(adjacent);
+    
+    delete_bc_MapLocation(unit_ml);
+    delete_bc_Location(unit_l);
+    
+    for(int i = 0; i < len; i++){
+        temp_unit = bc_VecUnit_index(adjacent, i);
+        if(bc_GameController_can_load(gc, bc_Unit_id(unit), bc_Unit_id(temp_unit))){
+            id = bc_Unit_id(temp_unit);
+            delete_bc_Unit(temp_unit);
+            delete_bc_VecUnit(adjacent);
+            return true;
+        }
+        delete_bc_Unit(temp_unit);
+         
+    }
+    delete_bc_VecUnit(adjacent);
+    return false;
+}
+
+int canAttack(bc_Unit *unit, int &id){
+    bc_Location *unit_l = bc_Unit_location(unit);
+    bc_MapLocation *unit_ml = bc_Location_map_location(unit_l);
+    bc_VecUnit *units = bc_GameController_sense_nearby_units_by_team(gc, unit_ml, bc_Unit_attack_range(unit), OTHER_TEAM(myTeam));
+    bc_Unit *temp_unit;
+    bc_Location *temp_l;
+    bc_MapLocation *temp_ml;
+    int len = bc_VecUnit_len(units);
+    int min = 100000000;
+    int min_id;
+    int temp;
+    int can = 0;
+    
+    for(int i = 0; i < len; i++){
+        temp_unit = bc_VecUnit_index(units, i);
+        temp_l = bc_Unit_location(temp_unit);
+        temp_ml = bc_Location_map_location(temp_l);
+        
+        temp = bc_MapLocation_distance_squared_to(temp_ml, unit_ml);
+        if(temp < min){
+            min = temp;
+            can = 1;
+            min_id = bc_Unit_id(temp_unit);
+        }
+        
+        delete_bc_Unit(temp_unit);
+        delete_bc_Location(temp_l);
+        delete_bc_MapLocation(temp_ml);
+    }
+    
+    delete_bc_VecUnit(units);
+    delete_bc_MapLocation(unit_ml);
+    delete_bc_Location(unit_l);
+    if(can) id = min_id;
+    return can;
+}
+
+int findLandingSite(bc_MapLocation **ml){ //scans a mars' starting map to find a suitable spot to land. 
+    bc_PlanetMap *planetMap = bc_GameController_starting_map(gc, Mars);
+    bc_MapLocation *temp_ml = new_bc_MapLocation(Mars, 0, 0);
+    int height = bc_PlanetMap_height_get(planetMap);
+    int width = bc_PlanetMap_width_get(planetMap);
+    for(int x = 0; x < width; x++){
+        for(int y = 0; y < height; y++){
+            bc_MapLocation_x_set(temp_ml, x);
+            bc_MapLocation_y_set(temp_ml, y);
+            if(bc_PlanetMap_is_passable_terrain_at(planetMap, temp_ml)){
+                *ml = temp_ml;
+                delete_bc_PlanetMap(planetMap);
+                return EXIT_SUCCESS;
+            }
+        }        
+    }
+
+    delete_bc_MapLocation(temp_ml);
+    delete_bc_PlanetMap(planetMap);
+    return EXIT_FAILURE;
+}
+
+//find an enemy that is too close to a factory
+int getTarget(const std::vector<int> &factories, int &target){
+    int min_distance = 1000000;
+    bc_Unit *fact;
+    bc_MapLocation *fact_ml;
+    bc_Location *fact_l;
+    bc_MapLocation *unit_ml;
+    bc_Location *unit_l;
+    int min_id;
+    bc_Unit *unit;
+    bc_VecUnit *units;
+    int len;
+    int temp;
+    int found = 0;
+    
+    for(int i = 0; i < factories.size(); i++){
+        fact = bc_GameController_unit(gc, factories[i]);
+        fact_l = bc_Unit_location(fact);
+        fact_ml = bc_Location_map_location(fact_l);
+        units = bc_GameController_sense_nearby_units_by_team(gc, fact_ml, 16, OTHER_TEAM(myTeam));
+
+        len = bc_VecUnit_len(units);        
+        for(int i = 0; i < len; i++){
+            unit = bc_VecUnit_index(units, i);
+            unit_l = bc_Unit_location(unit);
+            unit_ml = bc_Location_map_location(unit_l);
+
+            temp = bc_MapLocation_distance_squared_to(unit_ml, fact_ml);
+            if(temp < min_distance){
+                min_distance = temp;
+                min_id = bc_Unit_id(unit);
+                found = 1;
+            }
+
+            delete_bc_Location(unit_l);
+            delete_bc_MapLocation(unit_ml);
+            delete_bc_Unit(unit);
+        }
+        
+        delete_bc_Unit(fact);
+        delete_bc_Location(fact_l);
+        delete_bc_MapLocation(fact_ml);
+        delete_bc_VecUnit(units);
+    }
+    
+    if(found){
+        target = min_id;
+    }
+    return !found;
+}
+
+int countMyRobotsOnMars(){
+    bc_VecUnit *units = bc_GameController_units(gc);
+    bc_Unit *unit;
+    bc_Location *unit_l;
+    int len = bc_VecUnit_len(units);
+    int count = 0;
+    for(int i = 0; i < len; i++){
+        unit = bc_VecUnit_index(units, i);
+        unit_l = bc_Unit_location(unit);
+        if(bc_Unit_team(unit) == myTeam && bc_Location_is_on_planet(unit_l, Mars))
+            count++;
+        delete_bc_Unit(unit);
+        delete_bc_Location(unit_l);
+    }
+    delete_bc_VecUnit(units);
+    return count;
+}
+
+int countMyRobotsInSpace(){
+    bc_VecUnit *units = bc_GameController_units_in_space(gc);
+    int len = bc_VecUnit_len(units);
+    delete_bc_VecUnit(units);
+    return len;
+}
+
 int start_phase(){
     Team t = get_robots();
+    bc_Unit *loading_rocket;
     bc_Unit *unit;
+    bc_Unit *enemy;
+    bc_Unit *temp_unit;
     bc_Location *unit_l;
     bc_MapLocation *unit_ml;
     bc_MapLocation *temp_ml;
     bc_Location *temp_l;
     std::vector<bc_Direction> moves;
-    int flag;
-    int id;
+    int id = 0;
+    int hasRocketry = 0;
+    int num_blocked_workers = 0;
+    int num_blocked_rangers = 0;
     bc_Direction dir;//ection
+    bc_VecUnitID *unit_ids;    
+    bc_ResearchInfo *r_info = bc_GameController_research_info(gc); 
+
+    hasRocketry = bc_ResearchInfo_get_level(r_info, Rocket);
+    delete_bc_ResearchInfo(r_info);
     
     int karbonite = bc_GameController_karbonite(gc);
     int num_workers = t.workers.size(); //add the workers replicated this round
     int num_factories = t.factories.size();
+    int num_rangers = t.rangers.size();
+    int num_rockets = t.rockets.size();
+    
     
     //worker logic
     //WHEREAMI(0);
@@ -352,7 +543,10 @@ int start_phase(){
         unit_ml = bc_Location_map_location(unit_l);
 
         //WHEREAMI(0);
-        if(canBuild(unit, id)){ //if there is an adjacent blueprint, build it.
+        if(bc_Location_is_in_garrison(unit_l)){
+            WHEREAMI(0);
+        }
+        else if(canBuild(unit, id)){ //if there is an adjacent blueprint, build it.
             WHEREAMI(1);
             bc_GameController_build(gc, t.workers[i], id);
         }
@@ -365,7 +559,76 @@ int start_phase(){
             bc_GameController_replicate(gc, t.workers[i], dir);
             num_workers++;
         }
-        else if(karbonite < bc_UnitType_blueprint_cost(Factory)){ //if we don't have enough karbonite to build a factory then find more            
+        else if(i < (4 + num_blocked_workers) && t.rockets.size() > 0){ //we have got a rocket that can be boarded. head over to it.
+            loading_rocket = bc_GameController_unit(gc, t.rockets[0]); //should only be one rocket.
+            temp_l = bc_Unit_location(loading_rocket);
+            temp_ml = bc_Location_map_location(temp_l);
+            
+            if(Path::getPath(moves, terrain_map, unit_ml, temp_ml)) num_blocked_workers++;
+            if ((moves.size() > 0) && bc_GameController_can_move(gc, t.workers[i], moves[0]) && bc_GameController_is_move_ready(gc, t.workers[i])) {
+                WHEREAMI(43);
+                bc_GameController_move_robot(gc, t.workers[i], moves[0]);
+                check_errors();
+            }
+            
+            delete_bc_Location(temp_l);
+            delete_bc_MapLocation(temp_ml);
+            delete_bc_Unit(loading_rocket);            
+        }
+        else if(num_factories < NUM_FACTORIES_GOAL){
+            if(karbonite < bc_UnitType_blueprint_cost(Factory)){ //if we don't have enough karbonite to build a factory then find more            
+                if(canHarvest(unit, dir)){
+                    WHEREAMI(41);
+                    bc_GameController_harvest(gc, t.workers[i], dir);
+                }
+                else{
+                    WHEREAMI(42);
+                    temp_ml = getClosestKarbonite(unit_ml);
+                    Path::getPath(moves, terrain_map, unit_ml, temp_ml);
+                    if ((moves.size() > 0) && bc_GameController_can_move(gc, t.workers[i], moves[0]) && bc_GameController_is_move_ready(gc, t.workers[i])) {
+                        WHEREAMI(43);
+                        bc_GameController_move_robot(gc, t.workers[i], moves[0]);
+                        check_errors();
+                    }
+                    delete_bc_MapLocation(temp_ml);
+                }
+            }
+            else{ //do have enough karbonite so try to build
+                if(canBlueprint(unit, Factory, dir)){ //can Blueprint in any direction
+                    WHEREAMI(51);
+                    bc_GameController_blueprint(gc, bc_Unit_id(unit), Factory, dir);
+                    num_factories++;
+                }
+                else{ //find a spot to blueprint
+                    WHEREAMI(52);
+                    temp_ml = findClosestSite(unit);
+                    Path::getPath(moves, terrain_map, unit_ml, temp_ml);
+                    if ((moves.size() > 0) && bc_GameController_can_move(gc, t.workers[i], moves[0]) && bc_GameController_is_move_ready(gc, t.workers[i])) {
+                        bc_GameController_move_robot(gc, t.workers[i], moves[0]);
+                        check_errors();
+                    }
+                    delete_bc_MapLocation(temp_ml);
+                }
+            }
+        } //if we got no one on mars and we have no rockets that are loading.
+        else if(hasRocketry && (countMyRobotsInSpace() + countMyRobotsOnMars()) < 1 && num_rockets == 0){ //put a bitch on mars.
+            if(canBlueprint(unit, Rocket, dir)){ //can Blueprint in any direction
+                WHEREAMI(71);
+                bc_GameController_blueprint(gc, bc_Unit_id(unit), Rocket, dir);
+                num_rockets++;
+            }
+            else{ //find a spot to blueprint
+                WHEREAMI(72);
+                temp_ml = findClosestSite(unit);
+                Path::getPath(moves, terrain_map, unit_ml, temp_ml);
+                if ((moves.size() > 0) && bc_GameController_can_move(gc, t.workers[i], moves[0]) && bc_GameController_is_move_ready(gc, t.workers[i])) {
+                    bc_GameController_move_robot(gc, t.workers[i], moves[0]);
+                    check_errors();
+                }
+                delete_bc_MapLocation(temp_ml);
+            }
+        }
+        else{
             if(canHarvest(unit, dir)){
                 WHEREAMI(41);
                 bc_GameController_harvest(gc, t.workers[i], dir);
@@ -379,34 +642,136 @@ int start_phase(){
                     bc_GameController_move_robot(gc, t.workers[i], moves[0]);
                     check_errors();
                 }
+                delete_bc_MapLocation(temp_ml);
             }
         }
-        else if(canBlueprint(unit, Factory, dir)){ //can Blueprint in any direction
-            WHEREAMI(5);
-            bc_GameController_blueprint(gc, bc_Unit_id(unit), Factory, dir);
-            num_factories++;
-        }
-        else{ //find a spot to blueprint
-            WHEREAMI(6);
-            temp_ml = findClosestSite(unit);
-            Path::getPath(moves, terrain_map, unit_ml, temp_ml);
-            if ((moves.size() > 0) && bc_GameController_can_move(gc, t.workers[i], moves[0]) && bc_GameController_is_move_ready(gc, t.workers[i])) {
-                bc_GameController_move_robot(gc, t.workers[i], moves[0]);
-                check_errors();
-            }
-        }
-
+    
         delete_bc_Unit(unit);
         delete_bc_Location(unit_l);
         delete_bc_MapLocation(unit_ml);
     }
+
+    //rangers. Seek and destroy. As a group
+    static int target_id = 0; //todo makes every unit their own class. Make this a class variable
+    static int has_target = 0;
+    if(has_target && !bc_GameController_can_sense_unit(gc, target_id)){ //how to check if enemy unit is dead?
+        has_target = 0;
+    }
+    if(!has_target){
+        getTarget(t.factories, target_id); //defend factories
+    }
+    for(int i = 0; i < t.rangers.size(); i++){
+        unit = bc_GameController_unit(gc, t.rangers[i]);
+        unit_l = bc_Unit_location(unit);
+        unit_ml = bc_Location_map_location(unit_l);
+        
+        //WHEREAMI(0);
+        if(bc_Location_is_in_garrison(unit_l)){
+            WHEREAMI(0);
+        }
+        else if(i < (4 + num_blocked_rangers) && t.rockets.size() > 0){ //we have got a rocket that can be boarded. head over to it.
+            loading_rocket = bc_GameController_unit(gc, t.rockets[0]); //should only be one rocket.
+            temp_l = bc_Unit_location(loading_rocket);
+            temp_ml = bc_Location_map_location(temp_l);
+            
+            if(Path::getPath(moves, terrain_map, unit_ml, temp_ml)) num_blocked_rangers++;
+            if ((moves.size() > 0) && bc_GameController_can_move(gc, t.rangers[i], moves[0]) && bc_GameController_is_move_ready(gc, t.rangers[i])) {
+                WHEREAMI(43);
+                bc_GameController_move_robot(gc, t.rangers[i], moves[0]);
+                check_errors();
+            }
+            
+            delete_bc_Location(temp_l);
+            delete_bc_MapLocation(temp_ml);
+            delete_bc_Unit(loading_rocket);            
+        }
+        else if(has_target && bc_GameController_can_attack(gc, t.rangers[i], target_id) && bc_GameController_is_attack_ready(gc, t.rangers[i])){
+            bc_GameController_attack(gc, t.rangers[i], target_id);
+        }
+        else if(canAttack(unit, id) && bc_GameController_is_attack_ready(gc, t.rangers[i])){
+            bc_GameController_attack(gc, t.rangers[i], id);
+        }
+        else if(has_target){ //seek
+            enemy = bc_GameController_unit(gc, target_id);
+            temp_l = bc_Unit_location(enemy);
+            temp_ml = getClosestKarbonite(unit_ml);
+            Path::getPath(moves, terrain_map, unit_ml, temp_ml);
+            if ((moves.size() > 0) && bc_GameController_can_move(gc, t.rangers[i], moves[0]) && bc_GameController_is_move_ready(gc, t.rangers[i])) {
+                WHEREAMI(43);
+                bc_GameController_move_robot(gc, t.rangers[i], moves[0]);
+                check_errors();
+            }
+            delete_bc_Unit(enemy);
+            delete_bc_Location(temp_l);
+            delete_bc_MapLocation(temp_ml);
+        }
+        else if(t.factories.size() > 0){ //fortrify a position
+            temp_unit = bc_GameController_unit(gc, t.factories[0]);
+            temp_l = bc_Unit_location(temp_unit);
+            temp_ml = getClosestKarbonite(unit_ml);
+            Path::getPath(moves, terrain_map, unit_ml, temp_ml);
+            if ((moves.size() > 0) && bc_GameController_can_move(gc, t.rangers[i], moves[0]) && bc_GameController_is_move_ready(gc, t.rangers[i])) {
+                WHEREAMI(43);
+                bc_GameController_move_robot(gc, t.rangers[i], moves[0]);
+                check_errors();
+            }
+            delete_bc_Unit(temp_unit);
+            delete_bc_Location(temp_l);
+            delete_bc_MapLocation(temp_ml);
+        }
+    }
     
-    //factories
-    num_factories = 0;
+    
+    
+    //factories. Dont do much right now.
     for(unsigned int i = 0; i < t.factories.size(); i++){
         unit = bc_GameController_unit(gc, t.factories[i]);
-        num_factories += bc_Unit_structure_is_built(unit);
+        if(!bc_Unit_structure_is_built(unit)){
+            delete_bc_Unit(unit);
+            continue;
+        }
+        //try to unload units in garrison
+
+//        unit_ids = bc_Unit_structure_garrison(unit);
+//        len = bc_VecUnitID_len(unit_ids);
+        while(canUnload(unit, dir)){ //indiscriminately unload all units
+            bc_GameController_can_unload(gc, bc_Unit_id(unit), dir);
+        }
+        
+        if(num_rangers < NUM_RANGERS_GOAL && bc_GameController_can_produce_robot(gc, t.factories[i], Ranger)){
+            bc_GameController_produce_robot(gc, t.factories[i], Ranger);
+            num_rangers++;
+        }
+
+        delete_bc_Unit(unit);
+//        delete_bc_VecUnit(units);
     }
-    WHEREAMI(num_factories);
+
+    //rockets. Launch when full.
+    for(int i = 0; i < t.rockets.size(); i++){
+        unit = bc_GameController_unit(gc, t.rockets[i]);
+        if(!bc_Unit_structure_is_built(unit)){
+            delete_bc_Unit(unit);
+            continue;
+        }
+
+        unit_ids = bc_Unit_structure_garrison(unit);
+        if(bc_VecUnitID_len(unit_ids) == bc_Unit_structure_max_capacity(unit)){ //if ready to blast the fuck off
+            findLandingSite(&temp_ml);
+            if(bc_GameController_can_launch_rocket(gc, t.rockets[i], temp_ml)){
+                bc_GameController_launch_rocket(gc, t.rockets[i], temp_ml);
+            }
+        }
+        else{
+            while(canLoad(unit, id)){ //load all adjacent robots
+                bc_GameController_load(gc, bc_Unit_id(unit), id);
+            }
+        }
+        
+        delete_bc_Unit(unit);
+        delete_bc_VecUnitID(unit_ids);
+    }
+    
+    
     return EXIT_SUCCESS;
 }
